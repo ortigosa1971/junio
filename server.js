@@ -1,5 +1,7 @@
 const express = require('express');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
+const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bodyParser = require('body-parser');
@@ -11,12 +13,27 @@ const db = new sqlite3.Database('./db/usuarios.db', (err) => {
 });
 
 // Configuración de sesión
+
+
+app.set('trust proxy', 1);
+
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(session({
+  store: new SQLiteStore({ db: 'sessions.db', dir: './db' }),
   secret: 'tu_secreto',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 3600000 }
+  cookie: {
+    maxAge: 3600000,
+    secure: true,
+    sameSite: 'none'
+  }
 }));
+
 
 // Middleware para parsear formularios
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -25,13 +42,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Página principal protegida
 app.get('/', (req, res) => {
   if (!req.session.user) return res.redirect('/login.html');
-  res.sendFile(path.join(__dirname, 'views', 'inicio.html'));
+  res.sendFile(path.join(__dirname, 'public', 'inicio.html'));
 });
 
 // Página de inicio protegida
 app.get('/inicio.html', (req, res) => {
   if (!req.session.user) return res.redirect('/login.html');
-  res.sendFile(path.join(__dirname, 'views', 'inicio.html'));
+  res.sendFile(path.join(__dirname, 'public', 'inicio.html'));
 });
 
 // Verificación de sesión activa
@@ -119,3 +136,4 @@ app.get('/clima', (req, res) => {
     };
     res.json(weatherData);
 });
+
