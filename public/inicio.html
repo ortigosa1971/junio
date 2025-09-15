@@ -252,7 +252,7 @@
       fetch('/verificar-sesion')
         .then(res => {
           if (res.status === 401) {
-            document.getElementById('overlay-sesion').classList.remove('hidden');
+            window.location.href = '/login.html?error=sesion';
           }
         });
     }, 1500);
