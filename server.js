@@ -39,7 +39,6 @@ try {
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Session store reutilizable (para poder destruir sesiones previas) ---
 const sessionStore = new SQLiteStore({
@@ -100,6 +99,9 @@ app.use((req, res, next) => {
     const row = db.prepare(`SELECT session_id FROM ${table} WHERE ${column} = ?`).get(req.session.usuario);
     if (row?.session_id && row.session_id !== req.sessionID) {
       // Esta sesión ha sido reemplazada desde otro dispositivo
+      if (req.path === '/verificar-sesion') {
+        return req.session.destroy(() => res.sendStatus(401));
+      }
       return req.session.destroy(() => res.redirect('/login.html?error=sesion'));
     }
     next();
@@ -107,6 +109,12 @@ app.use((req, res, next) => {
     console.error('Middleware sesión única:', e);
     next();
   }
+});
+
+// --- Guard para /inicio.html (protegido) ---
+app.get('/inicio.html', (req, res, next) => {
+  if (!req.session || !req.session.usuario) return res.redirect('/login.html');
+  return res.sendFile(path.join(__dirname, 'public', 'inicio.html'));
 });
 
 // --- Inicio (protegido) ---
@@ -139,6 +147,8 @@ app.post('/login', (req, res) => {
 
     // ¿Existe una sesión previa distinta?
     if (row.session_id && row.session_id !== req.sessionID) {
+      // Destruir la sesión antigua en el session store (kick out inmediato)
+      try { sessionStore.destroy(row.session_id, ()=>{}); } catch (e) { console.warn('No se pudo destruir sesión antigua:', e); }
       // Opción B (recomendada): INVALIDAR la anterior y continuar
       sessionStore.destroy(row.session_id, (err) => {
         if (err) console.warn('No se pudo destruir la sesión previa:', err);
@@ -178,8 +188,11 @@ app.get('/logout', (req, res) => {
 
 // --- Utilidad para el frontend ---
 app.get('/verificar-sesion', (req, res) => {
-  res.json({ activo: !!req.session.usuario });
+  if (!req.session.usuario) return res.sendStatus(401);
+  res.json({ activo: true });
 });
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- 404 ---
 app.use((req, res) => res.status(404).send('Página no encontrada'));
